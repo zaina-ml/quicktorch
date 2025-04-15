@@ -49,8 +49,8 @@ def run_diagnostic(model: torch.nn.Module, dataset: torch.utils.data.Dataset, ta
 
     model.eval()
 
-    y_hat = quicktorch.make_predictions(model=model, dataset=dataset, device=device, BATCH_SIZE=BATCH_SIZE)
-    y_pred = quicktorch.convert_to_probabilities(predictions=y_hat, task="multiclass").argmax(dim=1)
+    y_hat = make_predictions(model=model, dataset=dataset, device=device, BATCH_SIZE=BATCH_SIZE)
+    y_pred = convert_to_probabilities(predictions=y_hat, task="multiclass").argmax(dim=1)
 
     diagnostics = [accuracy(y_pred, torch.tensor(dataset.targets, device=device)).item(), 
                    precision(y_pred, torch.tensor(dataset.targets, device=device)).item(), 
