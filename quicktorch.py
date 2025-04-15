@@ -194,7 +194,11 @@ def plot_images(dataset: torch.utils.data.Dataset, rows: int, columns: int, figs
         if title:
             plt.title(dataset.classes[label], fontsize=fontsize)
 
-        plt.imshow(image.squeeze(), cmap=cmap)  
+        if len(torch.squeeze(image).shape) == 2:
+            plt.imshow(torch.squeeze(image), cmap=cmap)
+        elif len(torch.squeeze(image).shape) == 3:
+            plt.imshow(torch.squeeze(image).permute(1, 2, 0))
+            
         plt.axis(False)
         
     plt.show();
