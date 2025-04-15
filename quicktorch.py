@@ -13,6 +13,8 @@ from torchmetrics.classification import Accuracy, Precision, Recall, F1Score, AU
 import mlxtend
 from mlxtend.plotting import plot_confusion_matrix
 
+import pathlib
+
 
 """
 A simple PyTorch library with functions made to make the PyTorch workflow easier
@@ -20,51 +22,76 @@ A simple PyTorch library with functions made to make the PyTorch workflow easier
 
 # --- Performs Tests Such as Accuracy, Precision, Recall, F1Core and AUROC --- #
 
-def run_diagnostic(model: torch.nn.Module, dataset: torch.utils.data.Dataset, task: str, device: str, BATCH_SIZE=32) -> tuple:
+def run_diagnostic(model: torch.nn.Module, dataset: torch.utils.data.Dataset, task: str, average: str, device: str, BATCH_SIZE=32) -> list:
     """
     Performs Tests Such as Accuracy, Precision, Recall, F1Score and AUROC Over a Given Dataset
-    
-    Args: 
+
+    Args:
     model (torch.nn.Module): PyTorch Model to be tested
     dataset (torch.utils.data.Dataset): PyTorch dataset where samples will be extracted
     task (str): either "multiclass" or "binary" (parameter used by torchmetrics)
+    average (str): either "micro" or "macro" (parameter used by torchmetrics)
     device (str): current device that model is on
     BATCH_SIZE (int): batch sizes of dataset when fitted to model
-  
+
     Returns:
-    Tuple containing Accuracy, Precision, Recall, F1Scorea and AUROC
+    List containing Accuracy, Precision, Recall, F1Scorea and AUROC
     """
+
     if task != "multiclass" and task != "binary":
         raise Exception("Task parameter must either be (multiclass, binary)")
 
     accuracy = Accuracy(task=task, num_classes=len(dataset.classes)).to(device)
-    precision = Precision(task=task, num_classes=len(dataset.classes)).to(device)
-    recall = Recall(task=task, num_classes=len(dataset.classes)).to(device)
+    precision = Precision(task=task, num_classes=len(dataset.classes), average=average).to(device)
+    recall = Recall(task=task, num_classes=len(dataset.classes), average=average).to(device)
     f1_score = F1Score(task=task, num_classes=len(dataset.classes)).to(device)
     auroc = AUROC(task=task, num_classes=len(dataset.classes)).to(device)
 
     model.eval()
-  
-    with torch.inference_mode():  
-      for X, y in torch.utils.data.DataLoader(dataset=dataset, batch_size=BATCH_SIZE):
-        X, y = X.to(device), y.to(device)
 
-        y_hat = model(X)
-        y_labels = torch.argmax(torch.softmax(y_hat, dim=1), dim=1)
+    y_hat = quicktorch.make_predictions(model=model, dataset=dataset, device=device, BATCH_SIZE=BATCH_SIZE)
+    y_pred = quicktorch.convert_to_probabilities(predictions=y_hat, task="multiclass").argmax(dim=1)
 
-        accuracy.update(y_labels, y)
-        precision.update(y_labels, y)
-        recall.update(y_labels, y)
-        f1_score.update(y_labels, y)
-        auroc.update(y_hat, y)
-        
-    print(f"Accuracy:  {accuracy.compute().item():.4f}")
-    print(f"Precision: {precision.compute().item():.4f}")
-    print(f"Recall:    {recall.compute().item():.4f}")
-    print(f"F1 Score:  {f1_score.compute().item():.4f}")
-    print(f"AUROC:     {auroc.compute().item():.4f}")
+    diagnostics = [accuracy(y_pred, torch.tensor(dataset.targets, device=device)).item(), 
+                   precision(y_pred, torch.tensor(dataset.targets, device=device)).item(), 
+                   recall(y_pred, torch.tensor(dataset.targets, device=device)).item(),
+                   f1_score(y_pred, torch.tensor(dataset.targets, device=device)).item(),
+                   auroc(y_hat, torch.tensor(dataset.targets, device=device)).item()]
 
-    return accuracy.compute().item(), precision.compute().item(), recall.compute().item(), f1_score.compute().item(), auroc.compute().item()
+    
+    print(f"Accuracy:  {diagnostics[0]:.4f}")
+    print(f"Precision: {diagnostics[1]:.4f}")
+    print(f"Recall:    {diagnostics[2]:.4f}")
+    print(f"F1 Score:  {diagnostics[3]:.4f}")
+    print(f"AUROC:     {diagnostics[4]:.4f}")
+
+    return diagnostics
+
+# --- Downloads and Saves Models --- #
+
+def save_model(path_name: str, model_name: str, model: torch.nn.Module) -> None:
+    """
+    Downloads a Given PyTorch Model's State Dict
+
+    Args:
+    path_name (str): name for folder in which the model will be stored in
+    model_name (str): name for .pth file (NO SPACES)
+    model (torch.nn.Module): model being saved
+
+    Returns: 
+    None
+    """
+
+
+    PATH = pathlib.Path(path_name)
+    PATH.mkdir(parents=True, exist_ok=True)
+
+    MODEL_NAME = model_name + ".pth"
+    SAVE_PATH = PATH / MODEL_NAME
+
+    torch.save(obj=model.state_dict(), f=SAVE_PATH)
+
+    print(f"[INFO] Model {model_name} downloaded in {path_name}")
 
 # --- Plots Confusion Matrix --- #
 
