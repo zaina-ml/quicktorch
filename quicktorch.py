@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch.cuda.amp import autocast, GradScaler
 
 import matplotlib.pyplot as plt
 import random
@@ -375,7 +376,9 @@ def train_model(epochs: int,
                "test_loss": [],
                "train_acc": [],
                "test_acc": []}
-    
+                    
+    scaler = GradScaler()
+                    
     for epoch in range(epochs):
         results["epoch"].append(epoch)
         
@@ -389,15 +392,26 @@ def train_model(epochs: int,
 
             X, y = X.to(device), y.to(device)
 
-            y_hat = model(X)
-            loss = loss_fn(y_hat, y)
-
-            optimizer.zero_grad(set_to_none=True)
-
-            loss.backward()
-
-            optimizer.step()
- 
+            if device == 'cpu':
+                y_hat = model(X)
+                loss = loss_fn(y_hat, y)
+    
+                optimizer.zero_grad(set_to_none=True)
+    
+                loss.backward()
+    
+                optimizer.step()
+            elif device == 'cuda':
+                with autocast():
+                    y_hat = model(X)
+                    loss = loss_fn(y_hat, y)
+    
+                optimizer.zero_grad(set_to_none=True)
+    
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+     
             train_acc += ((torch.eq(y, y_hat.argmax(dim=1)).sum().item()) / len(y)) * 100
             train_loss += loss.item()
 
