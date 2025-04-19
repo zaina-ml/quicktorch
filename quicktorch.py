@@ -376,8 +376,9 @@ def train_model(epochs: int,
                "test_loss": [],
                "train_acc": [],
                "test_acc": []}
-                    
-    scaler = GradScaler()
+
+    if device == 'cuda':
+        scaler = GradScaler()
                     
     for epoch in range(epochs):
         results["epoch"].append(epoch)
